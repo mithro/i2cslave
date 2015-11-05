@@ -20,10 +20,10 @@ from migen.build.platforms import pipistrello
 i2cslave_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)))
 
 
-class I2C(Module, AutoCSR):
+class I2CSlave(Module, AutoCSR):
     def __init__(self, pads):
         self._w = CSRStorage(8, name="w")
-        self._r = CSRStatus(1, name="r")
+        self._r = CSRStatus(2, name="r")
 
     # # #
 
@@ -31,10 +31,10 @@ class I2C(Module, AutoCSR):
         _sda_oe = Signal()
         _sda_r = Signal()
         self.comb += [
-            pads.scl.eq(self._w.storage[0]),
-            _sda_oe.eq(self._w.storage[1]),
-            _sda_w.eq(self._w.storage[2]),
-            self._r.status[0].eq(_sda_r)
+            _sda_oe.eq(self._w.storage[0]),
+            _sda_w.eq(self._w.storage[1]),
+            self._r.status[0].eq(_sda_r),
+            self._r.status[1].eq(pads.scl)
         ]
         self.specials += Tristate(pads.sda, _sda_w, _sda_oe, _sda_r)
 
@@ -167,7 +167,7 @@ class I2CSoC(BaseSoC):
         BaseSoC.__init__(self, platform=pipistrello_i2c.Platform(), **kwargs)
 
         platform = self.platform
-        self.submodules.i2c = I2C(platform.request("i2c"))
+        self.submodules.i2c = I2CSlave(platform.request("i2c"))
 
 
 soc_pipistrello_args = soc_sdram_args

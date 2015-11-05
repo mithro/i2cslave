@@ -3,7 +3,7 @@ include $(MISOC_DIRECTORY)/software/common.mak
 
 PYTHON ?= python3
 
-OBJECTS=main.o isr.o
+OBJECTS=main.o isr.o i2c.o
 
 CFLAGS += -I.
 
