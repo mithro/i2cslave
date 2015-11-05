@@ -52,6 +52,34 @@ unsigned char i2c_slave_read_byte(void)
 	return byte;
 }
 
+unsigned char i2c_slave_read_byte_asm(void)
+{
+	unsigned char byte = 0;
+	asm volatile(
+	"mvhi r6, 0xe000\n\t"
+	"ori r6,r6,0x8800\n\t"
+	"mvi r5, 1\n\t"
+	"mvhi r3,0xe000\n\t"
+	"ori r3,r3,0x8804\n\t"
+	"mvi r2,8\n\t"
+	"1: lw r4,(r3+0)\n\t"
+	"andi r4,r4,0x2\n\t"
+	"bne r4,r0,1b\n\t"
+	"2: lw r4,(r3+0)\n\t"
+	"andi r4,r4,0x2\n\t"
+	"be r4,r0,2b\n\t"
+	"sli %0,%0,1\n\t"
+	"sub r2,r2,r5\n\t"
+	"lw r4,(r3+0)\n\t"
+	"andi r4,r4,0x1\n\t"
+	"or %0,%0,r4\n\t"
+	"bne r2,r0,1b\n\t"
+	"sw (r6+0),r5\n\t"
+	"nop\n\t"
+	"sw (r2+0),r0\n\t" : "=r"(byte) :: "r1", "r2", "r3", "r4", "r5", "r6");
+	return byte;
+}
+
 unsigned char i2c_slave_read_addr(void)
 {
 	unsigned char byte = i2c_slave_read_byte();
