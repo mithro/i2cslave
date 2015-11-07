@@ -3,40 +3,22 @@ import argparse
 import os
 from fractions import Fraction
 
-from migen import *
-from migen.fhdl.specials import Tristate
 from migen.genlib.resetsync import AsyncResetSynchronizer
+from migen.build.platforms import pipistrello
 
 from misoc.interconnect.csr import *
-from misoc.integration.builder import *
+from misoc.interconnect.wishbone import Converter, Interface
 from misoc.cores.sdram_settings import MT46H32M16
 from misoc.cores.sdram_phy import S6HalfRateDDRPHY
 from misoc.cores import spi_flash
 from misoc.integration.soc_sdram import *
+from misoc.integration.builder import *
 
 from ..platforms import pipistrello_i2c
-from migen.build.platforms import pipistrello
-
-i2cslave_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)))
+from ..gateware.i2cslave import I2CSlave
 
 
-class I2CSlave(Module, AutoCSR):
-    def __init__(self, pads):
-        self._w = CSRStorage(8, name="w")
-        self._r = CSRStatus(2, name="r")
-
-    # # #
-
-        _sda_w = Signal()
-        _sda_oe = Signal()
-        _sda_r = Signal()
-        self.comb += [
-            _sda_oe.eq(self._w.storage[0]),
-            _sda_w.eq(self._w.storage[1]),
-            self._r.status[0].eq(_sda_r),
-            self._r.status[1].eq(pads.scl)
-        ]
-        self.specials += Tristate(pads.sda, _sda_w, _sda_oe, _sda_r)
+i2cslave_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")
 
 
 class _CRG(Module):
@@ -159,15 +141,25 @@ class BaseSoC(SoCSDRAM):
 class I2CSoC(BaseSoC):
 
     csr_map = {
-        "i2c": 17,
+        "i2c_mem": 17,
     }
     csr_map.update(BaseSoC.csr_map)
+
+    mem_map = {
+        "eeprom": 0x70000000,
+    }
+    mem_map.update(BaseSoC.mem_map)
 
     def __init__(self, **kwargs):
         BaseSoC.__init__(self, platform=pipistrello_i2c.Platform(), **kwargs)
 
         platform = self.platform
         self.submodules.i2c = I2CSlave(platform.request("i2c"))
+
+        converted = Interface()
+        self.submodules.converter = Converter(converted, self.i2c.sram.bus)
+
+        self.register_mem("eeprom", self.mem_map["eeprom"], converted)
 
 
 soc_pipistrello_args = soc_sdram_args
@@ -183,7 +175,7 @@ def main():
     soc = I2CSoC(**soc_pipistrello_argdict(args))
     builder = Builder(soc, **builder_argdict(args))
     builder.add_software_package("software", os.path.join(i2cslave_dir,
-                                                         "..", "software"))
+                                                          "software"))
     builder.build()
 
 
