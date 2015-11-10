@@ -5,20 +5,63 @@ from fractions import Fraction
 
 from migen.genlib.resetsync import AsyncResetSynchronizer
 from migen.build.platforms import pipistrello
+from migen.build.generic_platform import Pins, IOStandard
 
 from misoc.interconnect.csr import *
 from misoc.interconnect.wishbone import Converter, Interface
 from misoc.cores.sdram_settings import MT46H32M16
 from misoc.cores.sdram_phy import S6HalfRateDDRPHY
 from misoc.cores import spi_flash
+from misoc.cores.gpio import GPIOIn
 from misoc.integration.soc_sdram import *
 from misoc.integration.builder import *
+from migen.fhdl.specials import Tristate
 
 from ..platforms import pipistrello_i2c
 from ..gateware.i2cslave import I2CSlave
 
 
 i2cslave_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")
+
+
+class Clock(Module, AutoCSR):
+    def __init__(self, pad):
+        self._r = CSRStatus(1)
+
+        sample = Signal()
+        ratio = int(83.3e6//100e3//2)
+        counter = Signal(max=ratio)
+
+        self.comb += pad.eq(sample)
+
+        self.sync += [
+            self._r.status.eq(sample),
+            If(counter == ratio,
+               counter.eq(0),
+               sample.eq(~sample),
+            ).Else(
+               counter.eq(counter + 1),
+            )
+        ]
+
+
+class GPIOInOut(Module, AutoCSR):
+    def __init__(self, pad):
+        self._w = CSRStorage(2)
+        self._r = CSRStatus(1)
+
+        self.value = Signal()
+        self.oe = Signal()
+        self.r = Signal()
+
+        self.comb += [
+            self.value.eq(self._w.storage[0]),
+            self.oe.eq(self._w.storage[1]),
+            self._r.status.eq(self.r),
+        ]
+
+        t = Tristate(pad, self.value, self.oe, self.r)
+        self.specials += t
 
 
 class _CRG(Module):
@@ -137,29 +180,26 @@ class BaseSoC(SoCSDRAM):
             self.flash_boot_address = 0x180000
             self.register_rom(self.spiflash.bus, 0x1000000)
 
+papilio_adapter_io = [
+    ("gpio_out", 0, Pins("C:14"), IOStandard("LVTTL")),
+    ("clk100", 0, Pins("C:15"), IOStandard("LVTTL")),
+]
 
 class I2CSoC(BaseSoC):
 
     csr_map = {
-        "i2c_mem": 17,
+        "gpio_inout": 17,
+        "clock": 18,
     }
     csr_map.update(BaseSoC.csr_map)
-
-    mem_map = {
-        "eeprom": 0x70000000,
-    }
-    mem_map.update(BaseSoC.mem_map)
 
     def __init__(self, **kwargs):
         BaseSoC.__init__(self, platform=pipistrello_i2c.Platform(), **kwargs)
 
         platform = self.platform
-        self.submodules.i2c = I2CSlave(platform.request("i2c"))
-
-        converted = Interface()
-        self.submodules.converter = Converter(converted, self.i2c.sram.bus)
-
-        self.register_mem("eeprom", self.mem_map["eeprom"], converted)
+        platform.add_extension(papilio_adapter_io)
+        self.submodules.gpio_inout = GPIOInOut(platform.request("gpio_out"))
+        self.submodules.clock = Clock(platform.request("clk100"))
 
 
 soc_pipistrello_args = soc_sdram_args
