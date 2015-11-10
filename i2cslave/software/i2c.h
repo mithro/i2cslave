@@ -1,15 +1,8 @@
 #ifndef __I2C_H
 #define __I2C_H
 
-#define I2C_SDAOE	0x01
-#define I2C_SDAOUT	0x02
-
-#define I2C_SDAIN	0x01
-#define I2C_SCLIN   0x02
-
-unsigned char i2c_slave_read_addr(void);
-unsigned char i2c_slave_read_byte(void);
-void i2c_slave_wait_for_start_bit(void);
-unsigned char i2c_slave_read_byte_asm(void);
+#define I2C_STATUS_SHIFT_REG_FULL  1
+#define I2C_STATUS_SHIFT_REG_EMPTY 2
+#define I2C_STATUS_SHIFT_REG_READY 0
 
 #endif /* __I2C_H */
