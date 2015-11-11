@@ -68,6 +68,8 @@ I tested my code with the following Arduino code:
 ```C
 #include <Wire.h>
 
+#define I2C_SLAVE_ADDRESS 0x50
+
   void setup() 
   {
     Wire.begin(); // initialise the connection
@@ -77,7 +79,7 @@ I tested my code with the following Arduino code:
 
   unsigned char readAddr(unsigned char addr)
   {
-    Wire.beginTransmission(0x50); // will do a write to slave 0x50
+    Wire.beginTransmission(I2C_SLAVE_ADDRESS); // will do a write to slave 0x50
     Wire.write(addr);             // write the address
     Wire.endTransmission();       // transmit everything
     Wire.requestFrom(0x50, 1);    // now we read one byte from the slave
