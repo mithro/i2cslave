@@ -114,4 +114,4 @@ This is needed to let the slave react to such a write and potentially present so
 
 The slave (the LM32 firmware) needs to read the value and mark the shift register as "not full" (aka ready): https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c#L39
 
-Since the slace emulates the EEPROM protocol, it not only clears the "full" flag, but it also puts the corresponding data in the shift register for the master to read it: https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c#L38
+Since the slave emulates the EEPROM protocol, it not only clears the "full" flag, but it also puts the corresponding data in the shift register for the master to read it: https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c#L38
