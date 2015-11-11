@@ -1,5 +1,5 @@
 # i2cslave
-i2cslave done in bitbanging by LM32 softcore CPU
+i2cslave done with a software controlled shift register
 
 #### Dependencies
 
