@@ -23,3 +23,33 @@ while(1)
 
 Here is the result as showed by my logic analyzer:
 ![GPIO bit banging by the LM32](screenshots/gpio_out_clock_bitbang.png)
+
+The bit banging code can generate a ~ 7 MHz clock while doing nothing else.
+
+## Clock replicating ##
+
+This tests shows the capacity of bit banging software to read a pin status and then write to another one in a tight loop.
+
+The gateware is generating a 100 kHz clock: 
+* https://github.com/fallen/i2cslave/blob/bitbangtesting/i2cslave/targets/pipistrello_i2c.py#L27
+* https://github.com/fallen/i2cslave/blob/bitbangtesting/i2cslave/targets/pipistrello_i2c.py#L202
+
+The software will, in a tight loop, sample this signal and write its value to the gpio_out pin:
+* https://github.com/fallen/i2cslave/blob/bitbangtesting/i2cslave/software/main.c#L29
+
+```C
+while(1)
+{
+    gpio_inout__w_write(clock__r_read() | GPIO_INOUT_OE);
+}
+```
+
+Let's see what happens:
+![100 kHz clock replicating](https://github.com/fallen/i2cslave/blob/bitbangtesting/screenshots/clock_replication_bitbang_frequency.png)
+
+The clock is replicated correctly, the frequency is approximately the same.
+
+Something also interesting to have a look at is the latency of such code: the time between sampling the clock and writing to the `gpio_out` pin:
+![100 kHz clock replicating : latency](https://github.com/fallen/i2cslave/blob/bitbangtesting/screenshots/clock_replication_bitbang_latency.png)
+
+We can see that the latency is ~ 325 ns which is ~ 27 CPU clock cycles.
