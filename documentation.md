@@ -109,7 +109,9 @@ Here is what shows up on my logic analyzer:
 If you want to see the SDA line more clearly instead of seeing the I2C protocol interpretation of my logic analyzer: https://raw.githubusercontent.com/fallen/i2cslave/shift_register_complex/screenshots/logic_analyser_i2c_write.png
   
 You can see that after the master has writen one byte to the slave, the `shift_reg_full` line is asserted, meaning that the master cannot write or read anything anymore.
-This is needed to let the slave react to such a write and potentially present some fresh data in the shift register for a subsequent read, or just to have the time to retrieve the data before
-the master potentially writes again and overwrites the shift register content.
+
+This is needed to let the slave react to such a write and potentially present some fresh data in the shift register for a subsequent read, or just to have the time to retrieve the data before the master potentially writes again and overwrites the shift register content.
+
 The slave (the LM32 firmware) needs to read the value and mark the shift register as "not full" (aka ready): https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c#L39
+
 Since the slace emulates the EEPROM protocol, it not only clears the "full" flag, but it also puts the corresponding data in the shift register for the master to read it: https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c#L38
