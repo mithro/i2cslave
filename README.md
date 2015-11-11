@@ -1,5 +1,5 @@
 # i2cslave
-i2cslave done in gateware
+Some bit banging capability testing
 
 #### Dependencies
 
