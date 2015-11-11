@@ -1,7 +1,8 @@
 ## Documentation ##
 
 With this code you can emulate any I2C (slave side) protocol.
-The code in main.c is an example of EEPROM emulation.
+
+The code in [main.c](https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c) is an example of EEPROM emulation.
 
 Basically there are two ways of reading an EEPROM via I2C: 
 
