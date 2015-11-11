@@ -16,17 +16,19 @@ I tested my code with the following Arduino code:
 ```C
 #include <Wire.h>
 
+#define I2C_SLAVE_ADDRESS 0x50
+
 void setup() {
   Wire.begin();        // join i2c bus
   Serial.begin(9600);  // start serial for output
 }
 
 void loop() {
-  Wire.requestFrom(0x50, 9);    // request 9 bytes from slave device #8
+  Wire.requestFrom(I2C_SLAVE_ADDRESS, 9);    // request 9 bytes from slave device 0x50
 
-  while (Wire.available()) { // slave may send less than requested
+  while (Wire.available()) {       // slave may send less than requested
     unsigned char c = Wire.read(); // receive a byte as character
-    Serial.print(c, HEX);         // print the character
+    Serial.print(c, HEX);          // print the character
     Serial.print(", ");
   }
   Serial.println("");
