@@ -28,9 +28,14 @@ class I2CShiftReg(Module, AutoCSR):
 
         STATUS_FULL = 1
         STATUS_EMPTY = 2
+        STATUS_NEXT_FULL = 4
+        STATUS_NEXT_EMPTY = 8
+        STATUS_READ_ERROR = 16
+        STATUS_WRITE_ERROR = 32
 
         self.shift_reg = shift_reg = CSRStorage(8, write_from_dev=True)
-        self.status = status = CSRStorage(2, reset=STATUS_EMPTY, write_from_dev=True)
+        self.status = status = CSRStorage(6, reset=STATUS_EMPTY | STATUS_NEXT_EMPTY, write_from_dev=True)
+        self.shift_reg_next = shift_reg_next = CSRStorage(8, write_from_dev=True)
         self.slave_addr = slave_addr = CSRStorage(7)
         self.pads = pads
 
@@ -40,16 +45,16 @@ class I2CShiftReg(Module, AutoCSR):
         sda_i = Signal()
         sda_raw = Signal()
         sda_drv = Signal()
-        scl_drv = Signal()
+        #scl_drv = Signal()
         _sda_drv_reg = Signal()
         self._sda_i_async = _sda_i_async = Signal()
         self._scl_i_async = _scl_i_async = Signal()
         _scl_drv_reg = Signal()
         self.sync += _sda_drv_reg.eq(sda_drv)
-        self.sync += _scl_drv_reg.eq(scl_drv)
+        #self.sync += _scl_drv_reg.eq(scl_drv)
         self.specials += [
             Tristate(pads.sda, 0, _sda_drv_reg, _sda_i_async),
-            Tristate(pads.scl, 0, _scl_drv_reg, _scl_i_async),
+            Tristate(pads.scl, 0, 0, _scl_i_async),
             MultiReg(_scl_i_async, scl_raw),
             MultiReg(_sda_i_async, sda_raw),
         ]
@@ -63,6 +68,8 @@ class I2CShiftReg(Module, AutoCSR):
 
         shift_reg_full = Signal()
         shift_reg_empty = Signal()
+        shift_reg_next_empty = Signal()
+        shift_reg_next_full = Signal()
         scl_i = Signal()
         samp_count = Signal(6)
         samp_carry = Signal()
@@ -89,6 +96,8 @@ class I2CShiftReg(Module, AutoCSR):
             debug_ios[12].eq(status.storage[1]),
             shift_reg_full.eq(status.storage[0]),
             shift_reg_empty.eq(status.storage[1]),
+            shift_reg_next_full.eq(status.storage[2]),
+            shift_reg_next_empty.eq(status.storage[3]),
             scl_rising.eq(scl_i & ~scl_r),
             scl_falling.eq(~scl_i & scl_r),
             sda_rising.eq(sda_i & ~sda_r),
@@ -100,6 +109,7 @@ class I2CShiftReg(Module, AutoCSR):
         self.comb += start.eq(scl_i & sda_falling)
         self.comb += stop.eq(scl_i & sda_rising)
 
+        rx_buffer = Signal(8)
         din = Signal(8)
         counter = Signal(max=9)
         counter_reset = Signal()
@@ -125,8 +135,8 @@ class I2CShiftReg(Module, AutoCSR):
 
         zero_drv = Signal()
         data_drv = Signal()
-        pause_drv = Signal()
-        self.comb += scl_drv.eq(pause_drv)
+        #pause_drv = Signal()
+        #self.comb += scl_drv.eq(pause_drv)
         self.comb += If(zero_drv, sda_drv.eq(1)).Elif(data_drv,
                                                       sda_drv.eq(~data_bit))
 
@@ -134,7 +144,7 @@ class I2CShiftReg(Module, AutoCSR):
         data_drv_stop = Signal()
         self.sync += If(data_drv_en, data_drv.eq(1)).Elif(data_drv_stop,
                                                           data_drv.eq(0))
-        self.sync += If(data_drv_en, chooser(shift_reg.storage,
+        self.sync += If(data_drv_en, chooser(rx_buffer,
                                              counter, data_bit, 8,
                                              reverse=True))
         self.submodules.fsm = fsm = FSM()
@@ -173,22 +183,31 @@ class I2CShiftReg(Module, AutoCSR):
         fsm.act("PAUSE",
             debug_ios[4].eq(1),
             counter_reset.eq(1),
-            pause_drv.eq(1),
-            If(~shift_reg_empty & is_read,
-               counter_reset.eq(1),
-               NextState("DO_READ"),
-            ).Elif(~shift_reg_full & ~is_read,
-               NextState("DO_WRITE"),
-            )
+            #pause_drv.eq(1),
+            If(is_read,
+                NextState("DO_READ"),
+                If(~shift_reg_empty,
+                    rx_buffer.eq(shift_reg.storage),
+                ).Elif(~shift_reg_next_empty,
+                    rx_buffer.eq(shift_reg_next.storage),
+                ).Else(
+                    status.we.eq(1),
+                    status.dat_w.eq(STATUS_READ_ERROR | status.storage),
+                )
+            ),
         )
         fsm.act("DO_READ",
             debug_ios[5].eq(1),
             If(~scl_i,
                 If(counter == 8,
-                   data_drv_stop.eq(1),
-                   status.we.eq(1),
-                   status.dat_w.eq(STATUS_EMPTY),
-                   NextState("ACK_READ0"),
+                    data_drv_stop.eq(1),
+                    If(~shift_reg_empty,
+                        status.dat_w.eq(status.storage | STATUS_EMPTY),
+                    ).Elif(~shift_reg_next_empty,
+                        status.dat_w.eq(status.storage | STATUS_NEXT_EMPTY),
+                    ),
+                    status.we.eq(1),
+                    NextState("ACK_READ0"),
                 ).Else(
                     data_drv_en.eq(1),
                 )
@@ -213,10 +232,22 @@ class I2CShiftReg(Module, AutoCSR):
         )
         fsm.act("DO_WRITE",
             debug_ios[7].eq(1),
-            If(counter == 8,
-                shift_reg.dat_w.eq(din),
-                shift_reg.we.eq(1),
-                NextState("ACK_WRITE0"),
+            If(~scl_i,
+                If(counter == 8,
+                    If(~shift_reg_full,
+                        shift_reg.dat_w.eq(din),
+                        shift_reg.we.eq(1),
+                        status.dat_w.eq(status.storage | STATUS_FULL),
+                    ).Elif(~shift_reg_next_full,
+                        shift_reg_next.dat_w.eq(din),
+                        shift_reg_next.we.eq(1),
+                        status.dat_w.eq(status.storage | STATUS_NEXT_FULL),
+                    ).Else(
+                        status.dat_w.eq(status.storage | STATUS_WRITE_ERROR),
+                    ),
+                    status.we.eq(1),
+                    NextState("ACK_WRITE0"),
+                )
             )
         )
         fsm.act("ACK_WRITE0",
@@ -236,8 +267,6 @@ class I2CShiftReg(Module, AutoCSR):
             zero_drv.eq(1),
             If(~scl_i,
                 NextState("PAUSE"),
-                status.we.eq(1),
-                status.dat_w.eq(STATUS_FULL),
             )
         )
 
