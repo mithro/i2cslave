@@ -8,12 +8,14 @@
 #include <hw/flags.h>
 
 #include "i2c.h"
+#include "firmware.h"
 
-char fake_fw[128] = {0xaa, 0x55, 2, 12, 4, 5, 6, 7, 8};
+#define I2C_SLAVE_ADDRESS 0x51
 
 int main(void)
 {
-    unsigned char addr = 0;
+    unsigned int addr = 0;
+    unsigned char loading_low = 0;
     irq_setmask(0);
     irq_setie(1);
     uart_init();
@@ -21,21 +23,27 @@ int main(void)
     puts("I2C runtime built "__DATE__" "__TIME__"\n");
 
 
-    i2c_slave_addr_write(0x50);
-    i2c_shift_reg_write(fake_fw[addr]);
+    i2c_slave_addr_write(I2C_SLAVE_ADDRESS);
+    i2c_shift_reg_write(fx2fw[addr]);
     i2c_status_write(I2C_STATUS_SHIFT_REG_READY);
     while(1) {
         unsigned char status = i2c_status_read();
         if(status == I2C_STATUS_SHIFT_REG_EMPTY) // there's been a master READ
         {
-            puts("READ\n");
-            i2c_shift_reg_write(fake_fw[++addr]);
+            addr++;
+            //printf("READ 0x%04X\n", addr);
+            i2c_shift_reg_write(fx2fw[addr]);
             i2c_status_write(I2C_STATUS_SHIFT_REG_READY);
         } else if(status == I2C_STATUS_SHIFT_REG_FULL) // there's been a master WRITE
         {
-            printf("WRITE %02X\n", addr);
-            addr = i2c_shift_reg_read();
-            i2c_shift_reg_write(fake_fw[addr]);
+            if(loading_low)
+                addr |= i2c_shift_reg_read() & 0xFF;
+            else
+                addr = i2c_shift_reg_read() << 8;
+            //printf("WRITE %04X\n", addr);
+            if(loading_low)
+                i2c_shift_reg_write(fx2fw[addr]);
+            loading_low = 1 - loading_low;
             i2c_status_write(I2C_STATUS_SHIFT_REG_READY);
 
         } else if (status != 0)

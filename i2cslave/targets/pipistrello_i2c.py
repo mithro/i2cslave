@@ -64,7 +64,7 @@ class I2CShiftReg(Module, AutoCSR):
         shift_reg_full = Signal()
         shift_reg_empty = Signal()
         scl_i = Signal()
-        samp_count = Signal(6)
+        samp_count = Signal(3)
         samp_carry = Signal()
         self.sync += [
             Cat(samp_count, samp_carry).eq(samp_count + 1),
@@ -96,15 +96,13 @@ class I2CShiftReg(Module, AutoCSR):
         ]
 
         start = Signal()
-        stop = Signal()
         self.comb += start.eq(scl_i & sda_falling)
-        self.comb += stop.eq(scl_i & sda_rising)
 
         din = Signal(8)
         counter = Signal(max=9)
         counter_reset = Signal()
         self.sync += [
-            If(start | stop | counter_reset, counter.eq(0)),
+            If(start | counter_reset, counter.eq(0)),
             If(scl_rising,
                 If(counter == 8,
                     counter.eq(0)
@@ -243,7 +241,6 @@ class I2CShiftReg(Module, AutoCSR):
 
         for state in fsm.actions.keys():
             fsm.act(state, If(start, NextState("RCV_ADDRESS")))
-            fsm.act(state, If(stop, NextState("WAIT_START")))
 
 
 class _CRG(Module):
