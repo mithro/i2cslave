@@ -2,6 +2,7 @@ import struct
 import argparse
 import sys
 
+
 def getparser():
     p = argparse.ArgumentParser(description="Firmware to Header tool")
     p.add_argument("-i", "--input", required=True,
