@@ -1,11 +1,11 @@
 import struct
 import argparse
-
+import sys
 
 def getparser():
     p = argparse.ArgumentParser(description="Firmware to Header tool")
     p.add_argument("-i", "--input", required=True,
-                   help="input file in Intel Hex format")
+                   help="input file in .bin format.")
     p.add_argument("-o", "--output", default="firmware.h",
                    help="output header file. Default: firmware.h")
     p.add_argument("-s", "--speed", default=400, type=int, choices=[100, 400],
@@ -28,6 +28,13 @@ if __name__ == "__main__":
     args = getparser().parse_args()
     eeprom = bytes()
     fw = bytes()
+
+    if args.input.endswith(".ihx") or args.input.endswith(".hex"):
+        print("""Error: the input file needs to be in .bin format
+You can convert a .hex (or .ihex) into .bin by using objcopy.
+eg: $ objcopy -Iihex -Obinary in.hex out.bin""")
+        sys.exit(1)
+
     with open(args.input, "rb") as f:
         fw += f.read()
         fw_len = len(fw)
