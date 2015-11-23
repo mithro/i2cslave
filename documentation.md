@@ -4,7 +4,7 @@ With this code you can emulate any I2C (slave side) protocol.
 
 The code in [main.c](https://github.com/fallen/i2cslave/blob/bc03555aa5b49f351056877b713a274f753ab1ff/i2cslave/software/main.c) is an example of 1-byte address EEPROM emulation.
 
-EDIT: the more recent version of the code is an emulation of a 2-bytes adress EEPROM, see [the new main.c](https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c)
+EDIT: the more recent version of the code is an emulation of a 2-bytes wide adress EEPROM, see [the new main.c](https://github.com/fallen/i2cslave/blob/shift_register_complex/i2cslave/software/main.c)
 
 Basically there are two ways of reading an EEPROM via I2C: 
 
@@ -65,7 +65,7 @@ This means it will issue both I2C reads and writes.
 
 The master first sends an I2C write containing the address (on 1 or 2 bytes) it wants to read, then it sends one or several I2C reads to actually receive the data.
 
-I tested my code with the following Arduino code:
+I tested my code with the following Arduino code (which only handles 1-byte wide addresses):
 
 ```C
 #include <Wire.h>
