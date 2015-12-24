@@ -26,12 +26,13 @@ int main(void)
     i2c_slave_addr_write(I2C_SLAVE_ADDRESS);
     i2c_shift_reg_write(fx2fw[addr]);
     i2c_status_write(I2C_STATUS_SHIFT_REG_READY);
+    puts("Started!");
     while(1) {
         unsigned char status = i2c_status_read();
         if(status == I2C_STATUS_SHIFT_REG_EMPTY) // there's been a master READ
         {
             addr++;
-            //printf("READ 0x%04X\n", addr);
+            printf("READ 0x%04X\n", addr);
             i2c_shift_reg_write(fx2fw[addr]);
             i2c_status_write(I2C_STATUS_SHIFT_REG_READY);
         } else if(status == I2C_STATUS_SHIFT_REG_FULL) // there's been a master WRITE
@@ -40,7 +41,7 @@ int main(void)
                 addr |= i2c_shift_reg_read() & 0xFF;
             else
                 addr = i2c_shift_reg_read() << 8;
-            //printf("WRITE %04X\n", addr);
+            printf("WRITE %04X\n", addr);
             if(loading_low)
                 i2c_shift_reg_write(fx2fw[addr]);
             loading_low = 1 - loading_low;

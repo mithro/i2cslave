@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# vim: set ts=4 sw=4 et sts=4 ai:
+
 import argparse
 import os
 from fractions import Fraction
@@ -21,7 +23,6 @@ from ..platforms import pipistrello_i2c
 from migen.build.platforms import pipistrello
 
 i2cslave_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)))
-
 
 class I2CShiftReg(Module, AutoCSR):
     def __init__(self, pads, debug_ios):
@@ -354,8 +355,9 @@ class BaseSoC(SoCSDRAM):
         if not self.integrated_rom_size:
             self.submodules.spiflash = spi_flash.SpiFlash(platform.request("spiflash4x"),
                                                           dummy=10, div=4)
-            self.add_constant("SPIFLASH_PAGE_SIZE", 256)
-            self.add_constant("SPIFLASH_SECTOR_SIZE", 0x10000)
+
+            self.config["SPIFLASH_PAGE_SIZE"] = 256
+            self.config["SPIFLASH_SECTOR_SIZE"] = 0x10000
             self.flash_boot_address = 0x180000
             self.register_rom(self.spiflash.bus, 0x1000000)
 

@@ -27,7 +27,7 @@ runtime.elf: $(OBJECTS) libs
 		-lbase-nofloat -lcompiler_rt
 	@chmod -x $@
 
-main.o: $(SOFTWARE_DIRECTORY)/main.c
+main.o: $(SOFTWARE_DIRECTORY)/main.c $(SOFTWARE_DIRECTORY)/firmware.h
 	$(compile)
 
 %.o: $(SOFTWARE_DIRECTORY)/%.c
