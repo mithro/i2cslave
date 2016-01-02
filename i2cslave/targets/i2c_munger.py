@@ -4,9 +4,10 @@
 from migen import *
 from migen.fhdl.specials import Tristate
 
-def I2CPads(Module):
+class I2CPads(Module):
     def __init__(self, pads, obj):
-        self.specials += Tristate(pads.scl, obj.scl_w, obj.scl_oe, obj.self.scl_r)
+        self.submodules += obj
+        self.specials += Tristate(pads.scl, obj.scl_w, obj.scl_oe, obj.scl_r)
         self.specials += Tristate(pads.sda, obj.sda_w, obj.sda_oe, obj.sda_r)
         
 
@@ -27,6 +28,7 @@ class I2CMunger(Module):
 
         self.comb += [
             self.scl_w.eq(0),
+            self.scl_oe.eq(0),
             self.sda_w.eq(0),
         ]
 
@@ -43,7 +45,7 @@ class I2CMunger(Module):
             If(self.sda_r == 0, NextState("DETECT_START_SCL")),
         )
 
-        # SDA is low, wait for SCL to go low
+        # SDA is low but SCL high, wait for SCL to go low
         fsm.act("DETECT_START_SCL", #2
             If(self.sda_r != 0, NextState("DETECT_START_PRE")),
             If(self.scl_r == 0, NextState("DETECTED_START")),
@@ -57,41 +59,22 @@ class I2CMunger(Module):
         # Every time SCL goes high we have data.
         # Data for 8 bits.
         fsm.act("DATA_WAIT", #4
+            If(self.current_bit == 2, self.sda_oe.eq(1)),
+            If(self.current_bit == 3, self.sda_oe.eq(1)),
             If(self.scl_r == 1, NextState("DATA_READY")),
         )
 
         fsm.act("DATA_READY", #5
+            If(self.current_bit == 2, self.sda_oe.eq(1)),
             If(self.scl_r == 0,
                 If(self.current_bit < 7,
                     NextValue(self.current_bit, self.current_bit+1),
                     NextState("DATA_WAIT"),
                 ).Else(
-                    NextState("ACK_SEND"),
+                    NextState("DETECT_START_PRE"),
                 ),
             ),
         )
-
-        # Ack bit
-        fsm.act("ACK_SEND", #6
-            self.sda_oe.eq(1),
-            If(self.scl_r == 1,
-                NextState("ACK_WAIT"),
-            ),
-        )
-
-        fsm.act("ACK_WAIT", #7
-            self.sda_oe.eq(1),
-            If(self.scl_r == 0,
-                NextState("ACK_RELEASE"),
-            ),
-        )
-
-        fsm.act("ACK_RELEASE", #8
-            If(self.sda_r == 1,
-                NextState("DETECT_START_PRE"),
-            ),
-        )
-
 
 
 if __name__ == "__main__":
@@ -106,6 +89,14 @@ sda_r  ▔▔\▁▁▁▁▁1-------0-------1-------0-------0-------0-------0--
 scl_r  ▔▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔▔
 """.splitlines()[2:]]
 
+    lines = [x.split() for x in """\
+             S   0       1       2       3       4       5       6      7
+sda    ▔▔\▁▁▁▁▁----XXXX----XXXX----XXXX----XXXX----XXXX----XXXX----XXXX----XXXX----
+sda_oe ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\▁▁▁▁▁▁▁/▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+sda_w  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+sda_r  ▔▔\▁▁▁▁▁1-------0-------1-------0-------0-------0-------0-------0-------/▔▔▔
+scl_r  ▔▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔\▁▁▁/▔▔▔
+""".splitlines()[2:]]
 
     real = {}
     for name, signal in lines:

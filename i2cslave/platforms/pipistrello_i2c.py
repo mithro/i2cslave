@@ -121,7 +121,13 @@ _io = [
         Subsignal("scl", Pins("K12")), # WINGC 14
         Subsignal("sda", Pins("L12")), # WINGC 15
         IOStandard("LVTTL")
-     )
+     ),
+
+    ("i2c2", 0,
+        Subsignal("scl", Pins("U18")), # WINGC 14
+        Subsignal("sda", Pins("T17")), # WINGC 15
+        IOStandard("LVTTL")
+     ),
 ]
 
 _connectors = [
