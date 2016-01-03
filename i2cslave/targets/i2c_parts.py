@@ -61,6 +61,90 @@ class I2CStartCondition(Module):
         )
 
 
+# FSM Test Helpers
+#######################
+from fsm_test_helpers import *
+
+def waggle(dut, sig, check):
+    yield from check(dut)
+    for i in range(0, 10):
+        for j in range(i, 10):
+            yield from check(dut)
+            yield
+        yield from check(dut)
+        yield sig.eq(0)
+        yield from check(dut)
+        yield
+        yield from check(dut)
+        for j in range(0, i):
+            yield from check(dut)
+            yield
+        yield from check(dut)
+        yield sig.eq(1)
+        yield from check(dut)
+        yield
+        yield from check(dut)
+
+
+def TestI2CStartCondition():
+    dut = I2CStartCondition()
+
+    def set_initial(dut):
+        yield dut.scl.eq(1)
+        yield dut.sda.eq(1)
+        yield
+        try:
+            check_state(dut.fsm, "DETECT_PRE")
+            yield
+        except CheckFailure:
+            pass
+        yield from assert_state(dut.fsm, "DETECT_SDA")
+
+    def assert_not_detected(dut):
+        assert (yield dut.detected) != 1
+
+    def test(dut):
+        # While SDA is high, waggle SCL
+        yield from set_initial(dut)
+        yield from waggle(dut, dut.scl, assert_not_detected)
+
+        # While SCL is high, waggle SDA
+        yield from set_initial(dut)
+        yield from waggle(dut, dut.sda, assert_not_detected)
+
+        # While SCL is low, waggle SDA
+        yield from set_initial(dut)
+        yield dut.scl.eq(0)
+        yield
+        yield from assert_not_detected(dut)
+        yield from waggle(dut, dut.sda, assert_not_detected)
+        yield
+        yield dut.scl.eq(1)
+        yield from assert_not_detected(dut)
+        yield
+
+        # Take SDA low, then SCL low, should cause start condition
+        yield from set_initial(dut)
+        yield from assert_state(dut.fsm, "DETECT_SDA")
+        yield dut.sda.eq(0)
+        yield
+        yield
+        yield from assert_state(dut.fsm, "DETECT_SCL")
+        yield dut.scl.eq(0)
+        yield
+        yield
+        assert (yield dut.detected) == 1
+
+        # Both falling at the same time shouldn't cause a start condition.
+        yield from set_initial(dut)
+        yield dut.scl.eq(0)
+        yield dut.sda.eq(0)
+        yield
+        assert (yield dut.fsm.next_state) == 0
+
+    run_simulation(dut, test(dut), vcd_name="TestI2CStartCondition.vcd")
+
+
 class I2CStopCondition(Module):
     """
     Stop conditions are defined by a 0->1 (low to high) transition on SDA after
@@ -502,6 +586,8 @@ dut.{0}_expected = Signal(name="{0}_expected", reset={1})
 
 
 if __name__ == "__main__":
+    TestI2CStartCondition()
+
     i2c_frame = r"""
 #            S   0       1       2       3       4       5       6       7       A
 #   sda  XXXXXXXX----XXXX----XXXX----XXXX----XXXX----XXXX----XXXX----XXXX----XX_______XXXXXXXX
