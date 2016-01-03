@@ -535,7 +535,7 @@ detected _______________________________________________________________________
         r"""
 finished ___________________________▔_______________▔_______________▔__
   scl_oe _____________________________________________/▔▔▔▔▔\__________
-  scl_w  _XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX________XXXXXXXXXX
+  scl_w  _XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX_______XXXXXXXXXX
   sda_oe __________________________________/▔▔▔▔▔▔▔\__/▔▔▔▔▔▔▔▔▔▔▔▔\___
   sda_w  _XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX_________XX______________XXX
 """,
