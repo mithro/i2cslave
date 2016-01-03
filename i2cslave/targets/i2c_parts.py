@@ -4,6 +4,10 @@
 from migen import *
 from migen.fhdl.specials import Tristate
 
+from fsm_test_helpers import *
+
+##########################################################################
+##########################################################################
 
 def Shift(sig, direction, d=0):
     if direction == "right":
@@ -16,54 +20,6 @@ def Rotate(sig, direction):
         return Shift(sig, "right", sig[0])
     elif direction == "left":
         return Shift(sig, "left", sig[-1])
-
-
-
-def I2CPads(Module):
-    def __init__(self, pads, obj):
-        self.specials += Tristate(pads.scl, obj.scl_w, obj.scl_oe, obj.self.scl_r)
-        self.specials += Tristate(pads.sda, obj.sda_w, obj.sda_oe, obj.sda_r)
-        
-
-class I2CStartCondition(Module):
-    """
-    A start condition is SDA going low and then SCL going low.
-    """
-    def __init__(self):
-        self.scl = Signal(reset=1)      # Clock signal
-        self.sda = Signal(reset=1)      # Data signal
-        self.detected = Signal(reset=0) # Detected start condition
-        self.submodules.fsm = fsm = FSM("DETECT_PRE")
-
-        # Starting from SCL and SDA high. 
-        fsm.act("DETECT_PRE",   # 00
-            If((self.scl == 1) & (self.sda == 1), NextState("DETECT_SDA")),
-        )
-
-        # SCL is high and SDA is high, wait for SDA to go low
-        fsm.act("DETECT_SDA",   # 01
-            If(self.sda == 0, NextState("DETECT_SCL")),
-            # Take preference when both change at the same time.
-            If(self.scl != 1, NextState("DETECT_PRE")), 
-        )
-
-        # SDA is low, wait for SCL to go low
-        fsm.act("DETECT_SCL",   # 10
-            If(self.scl == 0, NextState("DETECTED")),
-            # Take preference when both change at the same time.
-            If(self.sda != 0, NextState("DETECT_PRE")),
-        )
-
-        # We have a start condition!
-        fsm.act("DETECTED",     # 11
-            self.detected.eq(1),
-            NextState("DETECT_PRE"),
-        )
-
-
-# FSM Test Helpers
-#######################
-from fsm_test_helpers import *
 
 def waggle(dut, sig, check):
     yield from check(dut)
@@ -85,25 +41,74 @@ def waggle(dut, sig, check):
         yield
         yield from check(dut)
 
+##########################################################################
+##########################################################################
+
+def I2CPads(Module):
+    def __init__(self, pads, obj):
+        self.specials += Tristate(pads.scl, obj.scl_w, obj.scl_oe, obj.self.scl_r)
+        self.specials += Tristate(pads.sda, obj.sda_w, obj.sda_oe, obj.sda_r)
+        
+##########################################################################
+##########################################################################
+
+class I2CStartCondition(Module):
+    """
+    A start condition is SDA going low and then SCL going low.
+    """
+    def __init__(self):
+        self.scl = Signal(reset=1)      # Clock signal
+        self.sda = Signal(reset=1)      # Data signal
+        self.detected = Signal(reset=0) # Detected start condition
+        self.submodules.fsm = fsm = FSM("PRE")
+
+        # Starting from SCL and SDA high. 
+        fsm.act("PRE",   # 00
+            If((self.scl == 1) & (self.sda == 1), NextState("SDA")),
+        )
+
+        # SCL is high and SDA is high, wait for SDA to go low
+        fsm.act("SDA",   # 01
+            If(self.sda == 0, NextState("SCL")),
+            # Take preference when both change at the same time.
+            If(self.scl != 1, NextState("PRE")), 
+        )
+
+        # SDA is low, wait for SCL to go low
+        fsm.act("SCL",   # 10
+            If(self.scl == 0, NextState("DET")),
+            # Take preference when both change at the same time.
+            If(self.sda != 0, NextState("PRE")),
+        )
+
+        # We have a start condition!
+        fsm.act("DET",     # 11
+            self.detected.eq(1),
+            NextState("PRE"),
+        )
+
+# ------------------------------------------------------------------------
 
 def TestI2CStartCondition():
     dut = I2CStartCondition()
+    state_string(dut.fsm)
 
     def set_initial(dut):
         yield dut.scl.eq(1)
         yield dut.sda.eq(1)
         yield
         try:
-            check_state(dut.fsm, "DETECT_PRE")
+            check_state(dut.fsm, "PRE")
             yield
         except CheckFailure:
             pass
-        yield from assert_state(dut.fsm, "DETECT_SDA")
+        yield from assert_state(dut.fsm, "SDA")
 
     def assert_not_detected(dut):
         assert (yield dut.detected) != 1
 
     def test(dut):
+
         # While SDA is high, waggle SCL
         yield from set_initial(dut)
         yield from waggle(dut, dut.scl, assert_not_detected)
@@ -125,11 +130,11 @@ def TestI2CStartCondition():
 
         # Take SDA low, then SCL low, should cause start condition
         yield from set_initial(dut)
-        yield from assert_state(dut.fsm, "DETECT_SDA")
+        yield from assert_state(dut.fsm, "SDA")
         yield dut.sda.eq(0)
         yield
         yield
-        yield from assert_state(dut.fsm, "DETECT_SCL")
+        yield from assert_state(dut.fsm, "SCL")
         yield dut.scl.eq(0)
         yield
         yield
@@ -144,6 +149,8 @@ def TestI2CStartCondition():
 
     run_simulation(dut, test(dut), vcd_name="TestI2CStartCondition.vcd")
 
+##########################################################################
+##########################################################################
 
 class I2CStopCondition(Module):
     """
@@ -155,31 +162,31 @@ class I2CStopCondition(Module):
         self.sda = Signal(reset=1)      # Data signal
         self.detected = Signal(reset=0) # Detected stop condition
 
-        self.submodules.fsm = fsm = FSM("DETECT_PRE")
+        self.submodules.fsm = fsm = FSM("PRE")
 
         # Starting from SCL and SDA low. 
-        fsm.act("DETECT_PRE",   # 00
-            If((self.scl == 0) & (self.sda == 0), NextState("DETECT_SCL")),
+        fsm.act("PRE",   # 00
+            If((self.scl == 0) & (self.sda == 0), NextState("SCL")),
         )
 
         # SCL is low and SDA is low, wait for SCL to go high
-        fsm.act("DETECT_SCL",   # 01
-            If(self.scl == 1, NextState("DETECT_SDA")),
+        fsm.act("SCL",   # 01
+            If(self.scl == 1, NextState("SDA")),
             # Take preference when both change at the same time.
-            If(self.sda != 0, NextState("DETECT_PRE")),
+            If(self.sda != 0, NextState("PRE")),
         )
 
         # SCL is high and SDA is low, wait for SDA to go high
-        fsm.act("DETECT_SDA",   # 10
-            If(self.sda == 1, NextState("DETECTED")),
+        fsm.act("SDA",   # 10
+            If(self.sda == 1, NextState("DET")),
             # Take preference when both change at the same time.
-            If(self.scl != 1, NextState("DETECT_PRE")),
+            If(self.scl != 1, NextState("PRE")),
         )
 
         # We have a stop condition!
-        fsm.act("DETECTED",     # 11
+        fsm.act("DET",     # 11
             self.detected.eq(1),
-            NextState("DETECT_PRE"),
+            NextState("PRE"),
         )
 
 
@@ -251,6 +258,8 @@ class I2CAcker(Module):
         for state in fsm.actions.keys():
             fsm.act(state, If(run == 0, NextState("INIT")))
 
+##########################################################################
+##########################################################################
 
 class I2CDataShifter(Module):
     """Module which handles the shifting of 8 bits of data."""
@@ -270,13 +279,12 @@ class I2CDataShifter(Module):
 
         self._bit_index = bit_index = Signal(min=0, max=self.DATA_SIZE)
         self.submodules.fsm = fsm = FSM("INIT")
-        fsm.act("INIT",         # 000
+        fsm.act("INIT",
             If((run == 1) & (scl == 0),
                 NextValue(bit_index, 0),
                 NextState("SHIFT_OUT"),
             ),
         )
-
 
         # Data changes while SCL is low
         fsm.act("SHIFT_OUT",
@@ -316,6 +324,8 @@ class I2CDataShifter(Module):
         for state in fsm.actions.keys():
             fsm.act(state, If(run == 0, NextState("INIT")))
 
+##########################################################################
+##########################################################################
 
 class I2CStateMachine(Module):
     def __init__(self):
@@ -410,7 +420,8 @@ class I2CStateMachine(Module):
             error.eq(1),
         )
 
-
+##########################################################################
+##########################################################################
 
 class I2CEngine(Module):
     def __init__(self):

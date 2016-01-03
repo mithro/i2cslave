@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # vim: set ts=4 sw=4 et sts=4 ai:
 
+from migen import *
+
 def _check_state(fsm, current_state, state_str):
     if not hasattr(fsm, "_rencoding"):
         fsm._rencoding = {}
@@ -42,3 +44,27 @@ def assert_state(fsm, state_str):
     """
     c, msg = _check_state(fsm, (yield fsm.state), state_str)
     assert c, msg
+
+
+def state_string(fsm):
+    """Add a register containing the ASCII string version of the state.
+
+    Useful for simulation!
+    """
+    fsm.finalize()
+
+    longest_state = 0
+    for s in fsm.actions:
+        longest_state = max(longest_state, len(s))
+
+    fsm.state_string = Signal(8 * longest_state, name="state_string")
+    for s, i in fsm.encoding.items():
+        s_padded = s+'\0'*(longest_state-len(s))
+        print(repr(s_padded))
+
+        fsm.comb += [
+            If(fsm.state == i,
+                *(fsm.state_string[j*8:(j+1)*8].eq(ord(b))
+                    for j, b in enumerate(list(reversed(s_padded))))
+            ),
+        ]
